@@ -9,29 +9,26 @@ defmodule SinMutacion do
   """
 
   def total_pesos(embarques) do
-    Enum.reduce(embarques, 0, fn e, acc -> acc + e.peso_kg end)
+    Enum.reduce(embarques, 0, fn embarque, total -> total + embarque.peso_kg end)
   end
-  
+
   def marcar_urgentes(embarques) do
-    # Usamos for y Map.put para agregar la llave nueva sin mutar el mapa original
-    for e <- embarques do
-      Map.put(e, :urgente, e.distancia_km > 500)
-    end
+    Enum.map(embarques, fn embarque ->
+      Map.put(embarque, :urgente, embarque.distancia_km > 500)
+    end)
   end
 
   def aplicar_descuento(precios, pct) do
-    # Comprensión de lista funcional: devuelve una lista nueva
-    for p <- precios do
-      descuento = div(p * pct + 50, 100)
-      p - descuento
-    end
+    Enum.map(precios, fn precio ->
+      precio - div(precio * pct + 50, 100)
+    end)
   end
 
   def contar_por_tipo(embarques) do
-    Enum.frequencies_by(embarques, & &1.tipo)
+    Enum.reduce(embarques, %{}, fn embarque, conteo ->
+      Map.update(conteo, embarque.tipo, 1, fn cantidad -> cantidad + 1 end)
+    end)
   end
 
-  def sin_duplicados(ids) do
-    Enum.uniq(ids)
-  end
+  def sin_duplicados(ids), do: Enum.uniq(ids)
 end
