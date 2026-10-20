@@ -28,5 +28,34 @@ defmodule Cotizador do
 
   defp validar(_embarque, _reglas), do: :ok
 
-  defp calcular(_embarque, _reglas), do: %{}
+  defp calcular(embarque, reglas) do
+    flete_bruto = embarque.distancia_km * reglas.tarifa_km
+    descuento = pct(flete_bruto, pct_descuento(embarque.peso_kg, reglas.descuento))
+    flete = flete_bruto - descuento
+    cuota_puente = Map.fetch!(reglas.cuota_puente, embarque.puente)
+    recargo = 0
+    ajuste_minimo = 0
+
+    %{
+      flete_bruto: flete_bruto,
+      descuento: descuento,
+      flete: flete,
+      cuota_puente: cuota_puente,
+      recargo: recargo,
+      ajuste_minimo: ajuste_minimo,
+      total: flete + cuota_puente + recargo + ajuste_minimo
+    }
+  end
+
+  defp pct(monto, porcentaje), do: div(monto * porcentaje + 50, 100)
+
+  defp pct_descuento(peso, %{criterio: :a_partir_de, umbral_kg: umbral, pct: porcentaje})
+       when peso >= umbral,
+       do: porcentaje
+
+  defp pct_descuento(peso, %{criterio: :mas_de, umbral_kg: umbral, pct: porcentaje})
+       when peso > umbral,
+       do: porcentaje
+
+  defp pct_descuento(_peso, _descuento), do: 0
 end
