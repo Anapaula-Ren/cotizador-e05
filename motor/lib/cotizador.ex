@@ -7,6 +7,23 @@ defmodule Cotizador do
     end
   end
 
+  def resumen(embarques, reglas) do
+    acumulado =
+      embarques
+      |> Enum.map(&{&1, cotizar(&1, reglas)})
+      |> Enum.reduce(
+        %{
+          cotizados: 0,
+          rechazados: [],
+          total: 0,
+          por_puente: %{comercio_mundial: 0, colombia: 0}
+        },
+        &acumular_resumen/2
+      )
+
+    Map.update!(acumulado, :rechazados, &Enum.reverse/1)
+  end
+
   defp validar(%{peso_kg: p}, _reglas) when p <= 0, do: {:error, :peso_invalido}
   defp validar(%{distancia_km: d}, _reglas) when d <= 0, do: {:error, :distancia_invalida}
   defp validar(%{tipo: t}, _reglas) when t not in @tipos, do: {:error, :tipo_desconocido}
@@ -52,6 +69,22 @@ defmodule Cotizador do
   end
 
   defp pct(monto, porcentaje), do: div(monto * porcentaje + 50, 100)
+
+  defp acumular_resumen({embarque, {:ok, cotizacion}}, acumulado) do
+    puente = embarque.puente
+
+    acumulado
+    |> Map.update!(:cotizados, &(&1 + 1))
+    |> Map.update!(:total, &(&1 + cotizacion.total))
+    |> Map.update!(
+      :por_puente,
+      &Map.update!(&1, puente, fn total -> total + cotizacion.total end)
+    )
+  end
+
+  defp acumular_resumen({embarque, {:error, motivo}}, acumulado) do
+    Map.update!(acumulado, :rechazados, &[{embarque.id, motivo} | &1])
+  end
 
   defp base_recargo(flete, _cuota_puente, :flete), do: flete
   defp base_recargo(flete, cuota_puente, :subtotal), do: flete + cuota_puente
