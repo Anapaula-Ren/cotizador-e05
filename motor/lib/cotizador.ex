@@ -21,7 +21,7 @@ defmodule Cotizador do
         &acumular_resumen/2
       )
 
-    Map.update!(acumulado, :rechazados, &Enum.reverse/1)
+    Map.update!(acumulado, :rechazados, &invertir_lista/1)
   end
 
   defp validar(%{peso_kg: p}, _reglas) when p <= 0, do: {:error, :peso_invalido}
@@ -84,6 +84,13 @@ defmodule Cotizador do
 
   defp acumular_resumen({embarque, {:error, motivo}}, acumulado) do
     Map.update!(acumulado, :rechazados, &[{embarque.id, motivo} | &1])
+  end
+
+  defp invertir_lista(lista), do: invertir_lista(lista, [])
+  defp invertir_lista([], invertida), do: invertida
+
+  defp invertir_lista([cabeza | resto], invertida) do
+    invertir_lista(resto, [cabeza | invertida])
   end
 
   defp base_recargo(flete, _cuota_puente, :flete), do: flete
