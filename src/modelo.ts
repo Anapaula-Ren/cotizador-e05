@@ -23,7 +23,6 @@ export type Borrador = {
 };
 
 export type Cotizacion = {
-  id: string;
   fleteBruto: number;
   descuento: number;
   flete: number;
@@ -72,8 +71,80 @@ export type Reglas = {
   pesoMaximoKg: number;
 };
 
-export function cotizar(_b: Borrador, _r: Reglas): Cotizado | Rechazado {
-  throw new Error('por implementar');
+const POLITICAS: Record<Carga['tipo'], { aplicaPesoMaximo: boolean }> = {
+  general: { aplicaPesoMaximo: true },
+  refrigerada: { aplicaPesoMaximo: true },
+  peligrosa: { aplicaPesoMaximo: true },
+  sobredimensionada: { aplicaPesoMaximo: false },
+};
+
+function validar(e: Embarque, r: Reglas): Resultado<Embarque, Motivo> {
+  if (e.pesoKg <= 0) return { ok: false, error: 'peso_invalido' };
+  if (e.distanciaKm <= 0) return { ok: false, error: 'distancia_invalida' };
+
+  if (POLITICAS[e.tipo].aplicaPesoMaximo && e.pesoKg > r.pesoMaximoKg) {
+    return { ok: false, error: 'excede_peso_maximo' };
+  }
+
+  return { ok: true, valor: e };
+}
+
+function calcularDescuento(pesoKg: number, fleteBruto: number, reglas: Reglas): number {
+  const aplica =
+    reglas.descuento.criterio === 'a_partir_de'
+      ? pesoKg >= reglas.descuento.umbralKg
+      : pesoKg > reglas.descuento.umbralKg;
+
+  return aplica ? Math.floor((fleteBruto * reglas.descuento.pct + 50) / 100) : 0;
+}
+
+function calcularFlete(e: Embarque, reglas: Reglas) {
+  const fleteBruto = e.distanciaKm * reglas.tarifaKm;
+  const descuento = calcularDescuento(e.pesoKg, fleteBruto, reglas);
+  return {
+    fleteBruto,
+    descuento,
+    flete: fleteBruto - descuento,
+  };
+}
+
+function calcularRecargo(e: Embarque, flete: number, cuotaPuente: number, reglas: Reglas): number {
+  const regla = reglas.recargo[e.tipo];
+  const base = reglas.baseRecargo === 'flete' ? flete : flete + cuotaPuente;
+  return Math.floor((base * regla.pct + 50) / 100) + regla.fija;
+}
+
+export function cotizar(b: Borrador, r: Reglas): Cotizado | Rechazado {
+  const e = b.embarque;
+  const validacion = validar(e, r);
+
+  if (!validacion.ok) {
+    return {
+      estado: 'rechazado',
+      embarque: e,
+      motivo: validacion.error,
+    };
+  }
+
+  const calculoFlete = calcularFlete(validacion.valor, r);
+  const cuotaPuente = r.cuotaPuente[e.puente];
+  const recargo = calcularRecargo(validacion.valor, calculoFlete.flete, cuotaPuente, r);
+
+  const subtotal = calculoFlete.flete + cuotaPuente + recargo;
+  const ajusteMinimo = Math.max(0, r.minimo - subtotal);
+  const total = subtotal + ajusteMinimo;
+
+  return {
+    estado: 'cotizado',
+    embarque: e,
+    cotizacion: {
+      ...calculoFlete,
+      cuotaPuente,
+      recargo,
+      ajusteMinimo,
+      total,
+    },
+  };
 }
 
 export function despachar(_c: Cotizado, _folio: string): Despachado {
